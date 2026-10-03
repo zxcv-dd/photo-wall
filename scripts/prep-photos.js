@@ -1,34 +1,46 @@
 /**
- * prep-photos.js — CI-safe photo pipeline for meow.
+ * prep-photos.js — CI-safe photo pipeline for meow (with categories).
  *
- * Why this exists: the bundled src/assets/rename.js only scans /\.jpe?g/ (the
- * shipped demo assets are .webp), and falls back to the raw filename when EXIF has
- * no date. Uploaded phone photos are fine, but PNG/WebP uploads were skipped and
- * badly-named files rendered as broken tiles (silently: width=NaN).
+ * Filename convention produced by this script:
+ *     <YYYY-MM-DD>.<w>×<h>[.<category>].<ext>        (`×` is U+00D7)
  *
- * This script handles jpg/jpeg/png/webp/svg, derives the date from
- *   1. EXIF DateTimeOriginal  2. a date inside the original filename  3. the
- *   current prefix  4. the original basename (never silently broken),
- * renames to `YYYY-MM-DD.<w>×<h>.<ext>` (U+00D7) and scrubs location/device
- * metadata. It is idempotent: already-correct filenames are left alone.
+ * What you may upload (dims are ALWAYS computed, never typed by hand):
+ *     2025-05-12.开幕式.jpg        → date + category
+ *     2025-05-12.jpg               → date only
+ *     开幕式.jpg                    → EXIF date (if any) + name as label
+ *     IMG_1234.jpg                 → EXIF date, else the name as label
+ *     2025-05-12.2048×1536.开幕式.jpg → already canonical, left untouched
+ *
+ * Category = every non-date, non-dimension dot segment. Files without one show up
+ * in the gallery's "未分类" group.
+ *
+ * Metadata (GPS + device identifiers) is scrubbed for jpg / png / webp.
+ * The script is idempotent: a file whose name already carries the correct
+ * dimensions is never renamed.
  *
  * Usage: node scripts/prep-photos.js [dir]     (default: src/assets)
  */
 
 const fs = require('fs')
 const path = require('path')
-const sizeOf = require('image-size')
+// image-size v1: sizeOf(path) — the function itself is the export.
+// image-size v2: { imageSize } and it only accepts a Buffer, not a path.
+const sizeOfModule = require('image-size')
+const sizeOfIsV2 = typeof sizeOfModule !== 'function'
+const sizeOf = (file) => (sizeOfIsV2 ? sizeOfModule.imageSize(fs.readFileSync(file)) : sizeOfModule(file))
 
 const DIR = process.argv[2] ? path.resolve(process.argv[2]) : path.join(__dirname, '..', 'src', 'assets')
 const SKIP = new Set(['package.json', 'package-lock.json', 'rename.js', 'clean-meta.js', 'prep-photos.js'])
 const IMG_RE = /\.(jpe?g|png|webp|svg)$/i
-// already canonical: <label>.<w>×<h>[.<n>].<ext>  (the optional n is the duplicate counter)
-const CANON_RE = /^(.+)\.(\d+)×(\d+)(?:\.(\d+))?\.([A-Za-z0-9]+)$/
+const DIM_RE = /^(\d+)[×xX](\d+)$/
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 const pad = (n) => String(n).padStart(2, '0')
+// The gallery's parser splits the filename on '.', so no segment may contain one.
+const clean = (s) => String(s).replace(/[^\w\-\u4e00-\u9fa5]+/g, '-').replace(/^-+|-+$/g, '')
 
 function dateFromExif (file) {
-  if (!/\.(jpe?g|jpeg|tiff)$/i.test(file)) return null
+  if (!/\.(jpe?g|tiff)$/i.test(file)) return null
   try {
     const piexif = require('piexif')
     const exif = piexif.load(fs.readFileSync(file).toString('binary'))
@@ -47,7 +59,9 @@ function dateFromName (name) {
   return `${m[1]}-${pad(mm)}-${pad(dd)}`
 }
 
-// ── metadata scrubbing (the dropped fields mirror src/assets/clean-meta.js) ──
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// ── metadata scrubbing (dropped fields mirror src/assets/clean-meta.js) ──
 const SENSITIVE = { '0th': [315 /* Artist */, 316 /* HostComputer */], Exif: [42016, 42032, 42033, 42035] }
 
 function stripJpeg (file) {
@@ -124,6 +138,41 @@ function scrub (file) {
   return 0
 }
 
+// ── name parsing ──
+function parseName (name, full) {
+  const ext = path.extname(name).toLowerCase()
+  const base = name.slice(0, name.length - ext.length)
+  const segs = base.split('.').filter(Boolean)
+  let hasDims = false
+  let dateSeg = null
+  const rest = []
+  for (const s of segs) {
+    if (!hasDims && DIM_RE.test(s)) { hasDims = true; continue }
+    if (!dateSeg && DATE_RE.test(s)) { dateSeg = s; continue }
+    rest.push(s)
+  }
+  // No standalone date segment: pull a date out of a free segment, e.g.
+  // `2025-09-09_校友返校` → date 2025-09-09 + category 校友返校.
+  if (!dateSeg) {
+    for (let i = 0; i < rest.length; i++) {
+      const m = /(20\d{2})[-_.]?(\d{2})[-_.]?(\d{2})/.exec(rest[i])
+      if (!m) continue
+      const mm = Number(m[2]); const dd = Number(m[3])
+      if (mm < 1 || mm > 12 || dd < 1 || dd > 31) continue
+      dateSeg = `${m[1]}-${pad(mm)}-${pad(dd)}`
+      const remainder = rest[i].replace(m[0], '').replace(/^[-_.]+|[-_.]+$/g, '')
+      if (remainder) rest[i] = remainder; else rest.splice(i, 1)
+      break
+    }
+  }
+  // A trailing pure number is the duplicate counter, never a category.
+  if (rest.length && /^\d+$/.test(rest[rest.length - 1])) rest.pop()
+  const exifDate = dateFromExif(full)
+  const label = clean(dateSeg || exifDate || rest.shift() || 'photo') || 'photo'
+  const category = clean(rest.join('-'))
+  return { ext, hasDims, label, category }
+}
+
 // ── main ──
 if (!fs.existsSync(DIR)) { console.log(`[prep-photos] 目录不存在, 跳过: ${DIR}`); process.exit(0) }
 
@@ -139,29 +188,29 @@ for (const name of files) {
   const width = dim.width; const height = dim.height
   if (!width || !height) { console.log(`  ! 尺寸无效, 跳过: ${name}`); continue }
 
-  const canon = CANON_RE.exec(name)
-  // Strictly idempotent: if the name already carries the real dimensions, never
-  // touch it (re-deriving could append another ".<w>×<h>" on every build).
-  if (canon && Number(canon[2]) === width && Number(canon[3]) === height) {
-    plan.push({ from: name, to: name, changed: false })
+  const { ext, hasDims, label, category } = parseName(name, full)
+  const stem = `${label}.${width}×${height}${category ? '.' + category : ''}`
+  const canonical = `${stem}${ext}`
+  // Strictly idempotent: a name that already carries the real dimensions is final.
+  // The duplicate counter (`.2`, `.3`, …) is part of that identity, otherwise the
+  // script would rename `.2`→`.3`→`.2` on every build.
+  const duplicatesStem = new RegExp(`^${escapeRe(stem)}\\.\\d+${escapeRe(ext)}$`)
+  if (hasDims && (name === canonical || duplicatesStem.test(name))) {
+    plan.push({ from: name, to: name, changed: false, category })
     continue
   }
-  const rawLabel = dateFromExif(full) || dateFromName(name) || (canon ? canon[1] : name.replace(/\.[^.]+$/, ''))
-  // The parser splits the filename on '.', so a label must not contain one.
-  const label = rawLabel.replace(/[^\w\-\u4e00-\u9fa5]+/g, '-').replace(/^-+|-+$/g, '') || 'photo'
-  const ext = path.extname(name).toLowerCase()
-  let target = `${label}.${width}×${height}${ext}`
 
+  let target = canonical
   if (target !== name) {
-    if (taken.has(target)) { // same date + same size: keep both, append a counter
+    if (taken.has(target)) { // same label + size + category: keep both
       let n = 2
-      while (taken.has(`${label}.${width}×${height}.${n}${ext}`)) n++
-      target = `${label}.${width}×${height}.${n}${ext}`
+      while (taken.has(`${stem}.${n}${ext}`)) n++
+      target = `${stem}.${n}${ext}`
     }
     taken.delete(name)
     taken.add(target)
   }
-  plan.push({ from: name, to: target, changed: target !== name })
+  plan.push({ from: name, to: target, changed: target !== name, category })
 }
 
 // two-phase rename so files never collide mid-flight
@@ -170,12 +219,15 @@ changing.forEach((p, i) => fs.renameSync(path.join(DIR, p.from), path.join(DIR, 
 changing.forEach((p, i) => fs.renameSync(path.join(DIR, `.tmp-${i}-${p.to}`), path.join(DIR, p.to)))
 
 let renamed = 0; let scrubbed = 0
+const categories = new Map()
 for (const p of plan) {
   const removed = scrub(path.join(DIR, p.to))
   if (removed) scrubbed++
   if (p.changed) { renamed++; console.log(`  改名: ${p.from}  ->  ${p.to}`) }
+  const key = p.category || '(未分类)'
+  categories.set(key, (categories.get(key) || 0) + 1)
 }
 console.log(`[prep-photos] 完成: ${plan.length} 个图片, 改名 ${renamed} 个, 抹除元数据 ${scrubbed} 个`)
-
-const bad = fs.readdirSync(DIR).filter((f) => IMG_RE.test(f) && !SKIP.has(f)).filter((f) => !CANON_RE.test(f))
-if (bad.length) console.log(`[prep-photos] 警告: 以下文件仍不符合 名称.宽×高.扩展名 规范, 可能显示异常: ${bad.join(', ')}`)
+if (categories.size) {
+  console.log('[prep-photos] 分类统计: ' + [...categories.entries()].map(([k, v]) => `${k}=${v}`).join(', '))
+}
