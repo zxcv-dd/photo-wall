@@ -95,7 +95,7 @@ const FRONT_BAND_END = 139
 // 回顾 (the first tab) is an auto-playing scatter slideshow: photos drop in one at a
 // time onto a jittered grid (so they stay spread out instead of burying each other),
 // hold for a moment, then the next batch takes over. It is not clickable.
-const SLIDESHOW_HOLD_MS = 3200
+const SLIDESHOW_HOLD_MS = 5200
 // Time between two photos landing. Kept near half a second on a phone-sized batch and
 // tightened for larger (desktop) batches so a batch always finishes in ~4 seconds.
 const SLIDESHOW_STAGGER_TARGET_MS = 4200
@@ -291,11 +291,13 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
   const [slideLeaving, setSlideLeaving] = useState<number[]>([])
   const slideBatchRef = useRef<number[]>([])
 
-  // A smaller batch on a phone reads as a spread-out pile rather than a crowd.
+  // A smaller batch on a phone reads as a spread-out pile rather than a crowd. The
+  // divisor is tuned so a phone batch is ~7 photos (2 columns × 4 rows, which fills a
+  // portrait screen better than 3 tall rows) and a desktop batch hits the 20 cap.
   const slideBatch = useMemo<number[] | null>(() => {
     if (!isSlideshow || !data.length) return null
-    const perScreen = Math.round((screenSize.width * screenSize.height) / 52000)
-    const size = Math.min(data.length, Math.max(6, Math.min(20, perScreen || 6)))
+    const perScreen = Math.round((screenSize.width * screenSize.height) / 45000)
+    const size = Math.min(data.length, Math.max(6, Math.min(20, perScreen || 7)))
     const frames = Math.ceil(data.length / size)
     const start = ((slideFrame % frames) * size) % data.length
     const batch: number[] = []
