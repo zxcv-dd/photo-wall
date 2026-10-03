@@ -27,6 +27,19 @@ const STRINGS: Record<string, Dict> = {
     ar: 'فسيفساء', hi: 'मोज़ेक', th: 'โมเสก', vi: 'Ghép hình', tr: 'Mozaik',
     nl: 'Mozaïek',
   },
+  'tab.category': {
+    zh: '分类', en: 'Sections', ja: '分類', ko: '분류', fr: 'Rubriques',
+    de: 'Rubriken', es: 'Secciones', pt: 'Seções', it: 'Sezioni', ru: 'Разделы',
+    ar: 'أقسام', hi: 'अनुभाग', th: 'หมวด', vi: 'Mục', tr: 'Bölümler',
+    nl: 'Rubrieken',
+  },
+  // Bucket label for photos whose filename has no category segment.
+  'category.uncategorized': {
+    zh: '未分类', en: 'Unsorted', ja: '未分類', ko: '미분류', fr: 'Non classé',
+    de: 'Unsortiert', es: 'Sin clasificar', pt: 'Sem categoria', it: 'Senza categoria',
+    ru: 'Без раздела', ar: 'غير مصنّف', hi: 'अवर्गीकृत', th: 'ไม่จัดหมวด',
+    vi: 'Chưa phân loại', tr: 'Sınıflandırılmamış', nl: 'Ongecategoriseerd',
+  },
   // Mos dock tagline.
   'mos.tagline': {
     zh: '让鼠标变得顺滑',
