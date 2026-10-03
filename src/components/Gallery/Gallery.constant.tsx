@@ -13,6 +13,7 @@ export enum GalleryViewMode {
   random,
   sequential,
   stage,
+  category,
 }
 
 // UI strings (titles, view labels, donate copy) now live in `utils/i18n`.
@@ -33,3 +34,10 @@ export const STAGE_RATIO_BREAK_POINT = {
 }
 export const STAGE_VERTICAL_BASE_CONTINUOUS = 2 // 垂直连续基准数
 export const STAGE_HORIZONTAL_BASE_CONTINUOUS = 2 // 水平连续基准数
+
+// CATEGORY — sectioned album: a header band per category, then that category's
+// photos packed into rows. Slightly narrower columns than SEQUENTIAL so ~4 fit
+// on a desktop viewport and the section reads as its own block.
+export const CATEGORY_BREAK_POINT = 340
+export const CATEGORY_HEADER_HEIGHT = 46
+export const CATEGORY_ROW_GAP = 28
