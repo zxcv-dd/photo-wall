@@ -1,5 +1,8 @@
 import { range } from 'utils'
 import {
+  CATEGORY_BREAK_POINT,
+  CATEGORY_HEADER_HEIGHT,
+  CATEGORY_ROW_GAP,
   RANDOM_MAX_WIDTH,
   RANDOM_MIN_WIDTH,
   SAFE_LABEL_HEIGHT,
@@ -186,4 +189,57 @@ export const getStageRect = (data: Pic, screenSize: Size, columnsRef: { current:
     columnsRef.current[column.index + i]?.push(rect)
   }
   return rect
+}
+
+// CATEGORY — each category is its own labelled section: a header band, then that
+// category's photos packed into rows of equal-width columns (uniform grid, so a
+// section reads as one block instead of a running masonry). Each header band is
+// baked into the `top` of the photos below it, which is why the gallery's
+// existing content-height formula needs no change.
+export interface CategorySection {
+  label: string
+  top: number
+  count: number
+}
+export interface CategoryGroup {
+  label: string
+  pics: Pic[]
+}
+export const getCategoryLayout = (groups: CategoryGroup[], screenSize: Size) => {
+  const slots = getColumnSlot(screenSize, CATEGORY_BREAK_POINT)
+  const base = ((screenSize.width - 2 * SAFE_PADDING) / slots) - (2 * SAFE_PADDING)
+  const items: { pic: Pic; rect: Rect }[] = []
+  const sections: CategorySection[] = []
+  let cursor = SAFE_PADDING * 2
+
+  groups.forEach((group) => {
+    sections.push({ label: group.label, top: cursor, count: group.pics.length })
+    cursor += CATEGORY_HEADER_HEIGHT
+    for (let i = 0; i < group.pics.length; i += slots) {
+      const row = group.pics.slice(i, i + slots)
+      // A zero/absent aspect ratio would emit `NaNpx` and break the FLIP maths.
+      const heights = row.map((pic) => base / (pic.aspectRatio > 0 ? pic.aspectRatio : 1))
+      const rowHeight = Math.max(...heights)
+      // Snapshot the running Y: the closure below must not capture `cursor`,
+      // which is reassigned on every iteration (`no-loop-func`).
+      const rowTop = cursor
+      row.forEach((pic, column) => {
+        items.push({
+          pic,
+          rect: {
+            left: column * (base + SAFE_PADDING * 2) + SAFE_PADDING,
+            top: rowTop,
+            angle: 0,
+            width: base,
+            height: heights[column],
+            fullWidth: base + SAFE_PADDING * 2,
+            fullHeight: rowHeight + SAFE_PADDING * 2 + SAFE_LABEL_HEIGHT,
+          },
+        })
+      })
+      cursor += rowHeight + SAFE_PADDING * 2 + SAFE_LABEL_HEIGHT + CATEGORY_ROW_GAP
+    }
+  })
+
+  return { items, sections }
 }
