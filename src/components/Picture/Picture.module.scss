@@ -97,14 +97,14 @@
       animation: shuffleFront 0.24s cubic-bezier(0.23, 1, 0.32, 1);
     }
 
-    // Slideshow (回顾): photos scatter down into place, then fall away again.
+    // Slideshow (回顾): photos drift down into place one at a time, then fall away.
     // `both` keeps the start state before the stagger delay and the end state after.
     &.imageWrapperSlideIn {
-      animation: slideDropIn 0.72s cubic-bezier(0.22, 1, 0.36, 1) both;
+      animation: slideDropIn 0.95s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
 
     &.imageWrapperSlideOut {
-      animation: slideFallOut 0.6s cubic-bezier(0.4, 0, 1, 1) both;
+      animation: slideFallOut 0.85s cubic-bezier(0.4, 0, 1, 1) both;
     }
 
     .mediaFrame {

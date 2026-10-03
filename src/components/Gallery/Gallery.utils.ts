@@ -76,9 +76,63 @@ export const getRandomRect = (data: Pic, screenSize: Size) => {
   }
 }
 
+// SLIDESHOW (回顾)
+// Lays one batch out as a tight pile: each photo owns a grid cell (so nothing gets
+// buried) but is placed near the cell centre with a small jitter, and the cards are
+// sized close to the cell so the batch reads as a scattered stack rather than a rigid,
+// widely spaced grid.
+export const getSlideshowRects = (
+  batch: number[],
+  data: { pic: Pic; rect: Rect }[],
+  screenSize: Size,
+): Map<number, Rect> => {
+  const rects = new Map<number, Rect>()
+  const count = batch.length
+  if (!count || !screenSize?.width || !screenSize?.height) return rects
+  // Keep clear of the title/tabs band at the top.
+  const headerInset = Math.min(150, screenSize.height * 0.13)
+  const usableW = screenSize.width - SAFE_PADDING * 2
+  const usableH = screenSize.height - headerInset - SAFE_PADDING * 2
+  const cols = Math.max(1, Math.round(Math.sqrt(count * (usableW / usableH))))
+  const rows = Math.ceil(count / cols)
+  const cellW = usableW / cols
+  const cellH = usableH / rows
+  const CARD_FILL = 0.95      // card vs cell — near 1 keeps the pile tight
+  const JITTER = 0.13         // how far off centre a card may sit (fraction of cell)
+  batch.forEach((index, position) => {
+    const item = data[index]
+    if (!item) return
+    const aspect = item.pic.aspectRatio || 1
+    const maxW = Math.max(56, cellW * CARD_FILL - SAFE_PADDING * 2)
+    const maxH = Math.max(56, cellH * CARD_FILL - SAFE_PADDING * 2 - SAFE_LABEL_HEIGHT)
+    let width = maxW
+    let height = width / aspect
+    if (height > maxH) {
+      height = maxH
+      width = height * aspect
+    }
+    const col = position % cols
+    const row = Math.floor(position / cols)
+    const cardW = width + SAFE_PADDING * 2
+    const cardH = height + SAFE_PADDING * 2 + SAFE_LABEL_HEIGHT
+    const left = SAFE_PADDING + col * cellW + (cellW - cardW) / 2 + range(-cellW * JITTER, cellW * JITTER)
+    const top = headerInset + row * cellH + (cellH - cardH) / 2 + range(-cellH * JITTER, cellH * JITTER)
+    const angle = range(-6, 6)
+    rects.set(index, {
+      left,
+      top,
+      width,
+      height,
+      angle,
+      fullWidth: cardW,
+      fullHeight: cardH,
+    })
+  })
+  return rects
+}
+
 // SEQUENTIAL
-const getSequentialColumn = (columnsRef: { current: Rect[][] }) => {
-  const columnHeights = columnsRef.current.map((column) => column.reduce((acc, item) => acc + (item.fullHeight ?? item.height), 0))
+const getSequentialColumn = (columnsRef: { current: Rect[][] }) => {  const columnHeights = columnsRef.current.map((column) => column.reduce((acc, item) => acc + (item.fullHeight ?? item.height), 0))
   const minColumnHeight = Math.min(...columnHeights)
   const indexOfFirstMinColumn = columnHeights.indexOf(minColumnHeight)
   return {

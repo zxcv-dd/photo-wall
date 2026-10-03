@@ -19,7 +19,7 @@ import {
 } from 'components/Picture/Picture.constant'
 import { TabItemIdentifier } from 'components/Tab/Tab.constant'
 import { CATEGORY_HEADER_HEIGHT, GalleryViewMode, SAFE_LABEL_HEIGHT, SAFE_PADDING, SEQUENTIAL_BREAK_POINT, STAGE_BREAK_POINT } from 'components/Gallery/Gallery.constant'
-import { CategorySection, getCategoryLayout, getColumnSlot, getRandomRect, getSequentialRect, getStageRect } from './Gallery.utils'
+import { CategorySection, getCategoryLayout, getColumnSlot, getRandomRect, getSequentialRect, getSlideshowRects, getStageRect } from './Gallery.utils'
 import { useCustomScroll } from './Gallery.hook'
 
 const IS_DEV = process.env.NODE_ENV === 'development'
@@ -92,11 +92,16 @@ const CARD_BASE_MAX = 19
 const FRONT_BAND_START = 20
 const FRONT_BAND_END = 139
 
-// 回顾 (the first tab) is an auto-playing scatter slideshow: every few seconds a new
-// batch of photos drops in while the previous batch falls away. It is not clickable.
-const SLIDESHOW_INTERVAL = 5200
-const SLIDESHOW_LEAVE_MS = 640
-const SLIDESHOW_STAGGER_MS = 45
+// 回顾 (the first tab) is an auto-playing scatter slideshow: photos drop in one at a
+// time onto a jittered grid (so they stay spread out instead of burying each other),
+// hold for a moment, then the next batch takes over. It is not clickable.
+const SLIDESHOW_HOLD_MS = 3200
+// Time between two photos landing. Kept near half a second on a phone-sized batch and
+// tightened for larger (desktop) batches so a batch always finishes in ~4 seconds.
+const SLIDESHOW_STAGGER_TARGET_MS = 4200
+const SLIDESHOW_STAGGER_MIN_MS = 180
+const SLIDESHOW_STAGGER_MAX_MS = 520
+const SLIDESHOW_LEAVE_MS = 900
 
 const Gallery = ({ onLightboxChange }: GalleryProps) => {
 
@@ -286,6 +291,23 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
   const [slideLeaving, setSlideLeaving] = useState<number[]>([])
   const slideBatchRef = useRef<number[]>([])
 
+  // A smaller batch on a phone reads as a spread-out pile rather than a crowd.
+  const slideBatch = useMemo<number[] | null>(() => {
+    if (!isSlideshow || !data.length) return null
+    const perScreen = Math.round((screenSize.width * screenSize.height) / 52000)
+    const size = Math.min(data.length, Math.max(6, Math.min(20, perScreen || 6)))
+    const frames = Math.ceil(data.length / size)
+    const start = ((slideFrame % frames) * size) % data.length
+    const batch: number[] = []
+    for (let i = 0; i < size; i++) batch.push((start + i) % data.length)
+    return batch
+  }, [isSlideshow, data, slideFrame, screenSize.width, screenSize.height])
+
+  const slideStagger = useMemo(() => {
+    const size = Math.max(1, slideBatch?.length ?? 1)
+    return Math.min(SLIDESHOW_STAGGER_MAX_MS, Math.max(SLIDESHOW_STAGGER_MIN_MS, Math.round(SLIDESHOW_STAGGER_TARGET_MS / size)))
+  }, [slideBatch])
+
   useEffect(() => {
     if (!isSlideshow) {
       setSlideFrame(0)
@@ -293,24 +315,31 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
       slideBatchRef.current = []
       return
     }
-    const id = window.setInterval(() => {
+    // Driven by a timeout rather than a fixed interval: a batch must be allowed to
+    // finish dropping (photos land one at a time) before the next one starts.
+    if (!slideBatch) return
+    const dwell = slideBatch.length * slideStagger + SLIDESHOW_HOLD_MS
+    const timer = window.setTimeout(() => {
       // Don't churn while the tab is in the background.
       if (document.visibilityState === 'visible') setSlideFrame((frame) => frame + 1)
-    }, SLIDESHOW_INTERVAL)
-    return () => window.clearInterval(id)
-  }, [isSlideshow])
+    }, dwell)
+    return () => window.clearTimeout(timer)
+  }, [isSlideshow, slideBatch, slideStagger])
 
-  const slideBatch = useMemo<number[] | null>(() => {
-    if (!isSlideshow || !data.length) return null
-    // Enough cards to fill the screen at the current card size.
-    const perScreen = Math.round((screenSize.width * screenSize.height) / 42000)
-    const size = Math.min(data.length, Math.max(9, Math.min(26, perScreen || 9)))
-    const frames = Math.ceil(data.length / size)
-    const start = ((slideFrame % frames) * size) % data.length
-    const batch: number[] = []
-    for (let i = 0; i < size; i++) batch.push((start + i) % data.length)
-    return batch
-  }, [isSlideshow, data, slideFrame, screenSize.width, screenSize.height])
+  // Batch spots, plus the previous batch's spots so the photos that are falling away
+  // fade out where they stand instead of jumping.
+  const slideRectsRef = useRef<Map<number, Rect>>(new Map())
+  const slideRects = useMemo(() => {
+    if (!slideBatch) return null
+    const current = getSlideshowRects(slideBatch, data, screenSize)
+    const merged = new Map(slideRectsRef.current)
+    current.forEach((rect, index) => merged.set(index, rect))
+    return { current, merged }
+  }, [slideBatch, data, screenSize])
+
+  useEffect(() => {
+    if (slideRects) slideRectsRef.current = slideRects.current
+  }, [slideRects])
 
   useEffect(() => {
     if (!slideBatch) return
@@ -329,10 +358,10 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
     slideLeaving.forEach((index) => phase.set(index, 'out'))
     slideBatch.forEach((index, position) => {
       phase.set(index, 'in')
-      delay.set(index, position * SLIDESHOW_STAGGER_MS)
+      delay.set(index, position * slideStagger)
     })
     return { phase, delay }
-  }, [slideBatch, slideLeaving])
+  }, [slideBatch, slideLeaving, slideStagger])
 
   const handleTitleClick = useCallback(() => scrollTo(0), [scrollTo])
   const handleTrackClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -416,7 +445,9 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
               key={item.pic.path}
               index={index}
               pic={item.pic}
-              rect={item.rect}
+              // 回顾 places the current batch on its own jittered grid; the batch that
+              // is falling away keeps the spot it was standing in.
+              rect={slideRects?.merged.get(index) ?? item.rect}
               // 回顾 is a slideshow: no dragging, no opening.
               draggable={false}
               highlightTuning={highlightTuning}
