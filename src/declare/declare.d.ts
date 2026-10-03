@@ -37,6 +37,10 @@ export declare global {
     aspectRatio: number
     title?: string
     desc?: string
+    // Optional album section. Encoded in the filename as the dot segment between
+    // the dimensions and the extension: `2025-05-12.2048×1536.开幕式.jpg`.
+    // Webpack's content hash and the pipeline's `.2` counter are stripped out.
+    category?: string
     path: string
   }
 }
