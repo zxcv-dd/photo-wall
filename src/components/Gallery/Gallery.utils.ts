@@ -15,16 +15,28 @@ import {
 } from 'components/Gallery/Gallery.constant'
 
 // COMMON
+// Phones need their own column rule: a fixed break point (300–400px) collapses to a
+// single, screen-filling column there, which is far too large. Below this width we
+// fall back to a minimum card width instead, so a 390px viewport gets 2 columns.
+const NARROW_SCREEN_WIDTH = 700
+const NARROW_MIN_CARD_WIDTH = 190
+
 export const getColumnSlot = (screenSize: Size, breakPoint: number) => {
   // Guard: empty screen size
   if (!screenSize) return 1
   // Guard: small screen
-  return Math.floor(screenSize.width / breakPoint) || 1
+  const slots = Math.floor(screenSize.width / breakPoint) || 1
+  if (screenSize.width >= NARROW_SCREEN_WIDTH) return slots
+  const byMinWidth = Math.floor(screenSize.width / NARROW_MIN_CARD_WIDTH) || 1
+  return Math.max(2, Math.min(3, byMinWidth))
 }
 
 // RANDOM
-const getRandomSize = (aspectRatio: number) => {
-  const width = range(RANDOM_MIN_WIDTH, RANDOM_MAX_WIDTH)
+const getRandomSize = (aspectRatio: number, screenSize?: Size) => {
+  let width = range(RANDOM_MIN_WIDTH, RANDOM_MAX_WIDTH)
+  // Keep a scattered card inside the viewport on phones (RANDOM_MAX_WIDTH alone can
+  // exceed the screen, which pushed cards off the edge).
+  if (screenSize?.width) width = Math.min(width, Math.max(140, screenSize.width - 4 * SAFE_PADDING))
   const height = width / aspectRatio
   return {
     width,
@@ -52,7 +64,7 @@ const getRandomPosition = (screenSize: Size, imageSize: Size, angle: number) => 
   }
 }
 export const getRandomRect = (data: Pic, screenSize: Size) => {
-  const imageSize = getRandomSize(data.aspectRatio)
+  const imageSize = getRandomSize(data.aspectRatio, screenSize)
   const angle = range(-20, 20)
   const { left, top } = getRandomPosition(screenSize, imageSize, angle)
   return {

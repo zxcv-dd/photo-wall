@@ -21,6 +21,27 @@
   }
 }
 
+// Stands in for a card that has not been mounted yet (see Picture.tsx). It only has
+// to hold the card's box so the observer can watch the right spot.
+.placeholder {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px 320px;
+}
+
+// Phones: with hundreds of large photos mounted, letting the browser skip
+// layout/paint for the ones that are scrolled out of view is the difference between
+// smooth flicking and a stuttering gallery.
+@media (max-width: 700px) {
+  .dragLayer {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 320px 320px;
+  }
+}
+
 .dragPose {
   transform-style: preserve-3d;
   backface-visibility: hidden;

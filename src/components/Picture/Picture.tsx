@@ -14,15 +14,13 @@ import {
   PictureHighlightTuning,
   PICTURE_LABEL_LINE_HEIGHT,
   PICTURE_LABEL_MARGIN_BOTTOM,
-  PICTURE_LABEL_MARGIN_TOP,
-  PICTURE_VISIBLE_INTERVAL
+  PICTURE_LABEL_MARGIN_TOP
 } from 'components/Picture/Picture.constant'
 
 const CARD_PAD = (PICTURE_INNER_PADDING + PARALLAX_INNER_PADDING) * 2
 const LABEL_H = PICTURE_LABEL_LINE_HEIGHT + PICTURE_LABEL_MARGIN_TOP + PICTURE_LABEL_MARGIN_BOTTOM
 const DRAG_THRESHOLD = 6
 const GLARE_DEFAULT = { x: 50, y: 50 }
-const FRONT_OPEN_DELAY = 80
 const DRAG_VELOCITY_BLEND = 0.24
 const DRAG_LAG_FACTOR = 18
 const DRAG_ACCEL_LAG_FACTOR = 120
@@ -191,8 +189,25 @@ const Picture = React.memo(({
   })
 
   const [visible, setVisible] = useState(false)
-  const handleVisible = useCallback(() => setVisible(true), [])
-  useEffect(() => {setTimeout(handleVisible, index * PICTURE_VISIBLE_INTERVAL) }, [handleVisible, index])
+  const placeholderRef = useRef<HTMLDivElement>(null)
+  // Mount when the card approaches the viewport. The template used to mount card N
+  // only after N * 300ms (PICTURE_VISIBLE_INTERVAL), so on a 339-photo gallery the
+  // last cards waited ~100 seconds and fast scrolling ran into empty space — very
+  // noticeable on a phone. Observing the placeholder instead means whatever you
+  // scroll to is already there.
+  useEffect(() => {
+    if (visible) return
+    const el = placeholderRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setVisible(true)
+      return
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) setVisible(true)
+    }, { rootMargin: '600px 0px 600px 0px' })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [visible])
 
   // Onload
   const [loaded, setLoaded] = useState(false)
@@ -217,7 +232,6 @@ const Picture = React.memo(({
   const [glare, setGlare] = useState(GLARE_DEFAULT)
   const [glareActive, setGlareActive] = useState(false)
   const [shuffleActive, setShuffleActive] = useState(false)
-  const expandTimerRef = useRef<number>(0)
 
   // FLIP: morph between view layouts with GPU transform (translate + scale)
   // instead of animating width/height/position (which would reflow). The <img>
@@ -293,9 +307,6 @@ const Picture = React.memo(({
 
   useEffect(() => {
     return () => {
-      if (expandTimerRef.current) {
-        clearTimeout(expandTimerRef.current)
-      }
       if (flipTimerRef.current) {
         clearTimeout(flipTimerRef.current)
       }
@@ -478,21 +489,12 @@ const Picture = React.memo(({
     if (isExpanded) {
       onClose?.()
     } else if (loaded) {
-      const movedToFront = onRequestFront?.(index, 'click') ?? false
-      if (expandTimerRef.current) {
-        clearTimeout(expandTimerRef.current)
-        expandTimerRef.current = 0
-      }
-      if (movedToFront) {
-        expandTimerRef.current = window.setTimeout(() => {
-          onExpand?.(index)
-          expandTimerRef.current = 0
-        }, FRONT_OPEN_DELAY)
-        return
-      }
+      // Open straight away. This used to re-scatter the card first (a fresh shuffle
+      // position) and only expand after FRONT_OPEN_DELAY ms, which is what made a
+      // click look like it flashed before the photo opened.
       onExpand?.(index)
     }
-  }, [isExpanded, loaded, onExpand, onClose, index, onRequestFront])
+  }, [isExpanded, loaded, onExpand, onClose, index])
 
   const dragTransform = `translate3d(${baseLeft}px, ${baseTop}px, 0) translate(${flip.dx}px, ${flip.dy}px) scale(${flip.sx}, ${flip.sy})`
   const dragPoseStyle = useMemo(() => ({
@@ -507,8 +509,18 @@ const Picture = React.memo(({
     '--glare-shift': `${(glare.x - 50) * 0.6 * highlightTuning.shiftGain}px`,
   }) as CSSProperties, [dragging, glare.x, glare.y, glareActive, highlightTuning.foilGain, highlightTuning.shiftGain, highlightTuning.specularGain])
 
-  // Guard: not visible
-  if (!visible) return null
+  // Guard: not mounted yet. A positioned placeholder keeps this card's real box in
+  // the flow (and gives the IntersectionObserver something to watch) so the heavy
+  // subtree below only appears once the card is near the viewport.
+  if (!visible) {
+    return (
+      <div
+        ref={placeholderRef}
+        className={styles.placeholder}
+        style={{ transform: dragTransform, transformOrigin: '0 0', zIndex: stackIndex, width: cardWidth, height: cardHeight }}
+      />
+    )
+  }
 
   return (
     <div
@@ -557,6 +569,7 @@ const Picture = React.memo(({
                   src={pic.path}
                   alt={pic.title}
                   loading="lazy"
+                  decoding="async"
                   draggable={false}
                   style={{ width, height }}
                   onLoad={updateLoaded}
