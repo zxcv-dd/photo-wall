@@ -30,6 +30,63 @@ const sizeOfIsV2 = typeof sizeOfModule !== 'function'
 const sizeOf = (file) => (sizeOfIsV2 ? sizeOfModule.imageSize(fs.readFileSync(file)) : sizeOfModule(file))
 
 const DIR = process.argv[2] ? path.resolve(process.argv[2]) : path.join(__dirname, '..', 'src', 'assets')
+// Photos shipped with the template (the upstream author's cat album). A fork must
+// never publish them, so they are removed from the build workspace up front.
+// Generated from the upstream repo's src/assets listing.
+const DEMO_ASSETS = new Set([
+  '2017-09-06.2049×1537.webp',
+  '2017-10-26.2048×1574.webp',
+  '2017-11-12.2049×1873.webp',
+  '2017-11-15.1537×2049.webp',
+  '2017-11-17.1616×1080.webp',
+  '2017-11-26.2049×1536.webp',
+  '2017-11-28.1616×1080.webp',
+  '2017-12-14.1536×2048.webp',
+  '2017-12-17.284×401.webp',
+  '2018-03-17.1538×2048.webp',
+  '2018-07-21.1537×2049.webp',
+  '2018-08-25.1537×2049.webp',
+  '2018-09-16.2049×1537.webp',
+  '2019-03-02.1537×2049.webp',
+  '2019-04-17.1537×2049.webp',
+  '2019-05-16.1440×2560.webp',
+  '2019-12-25.1524×2062.webp',
+  '2020-02-09.1536×2048.webp',
+  '2020-12-09.2560×1707.webp',
+  '2020-12-13.2560×1707.webp',
+  '2020-12-29.2560×1707.webp',
+  '2021-05-29.1820×2560.webp',
+  '2021-07-27.2560×1920.webp',
+  '2021-09-04.2560×1920.webp',
+  '2021-09-26.2560×1920.webp',
+  '2022-01-22.2560×1440.webp',
+  '2022-03-09.1616×1080.webp',
+  '2022-03-25.2560×1440.webp',
+  '2022-09-12.2560×2282.webp',
+  '2023-02-04.1920×2560.webp',
+  '2023-02-19.1920×2560.webp',
+  '2023-05-03.768×1024.webp',
+  '2023-05-05.768×1024.webp',
+  '2023-05-31.768×1024.webp',
+  '2023-10-24.768×1024.webp',
+  '2023-12-25.1086×723.webp',
+  '2024-06-24.768×1024.webp',
+  '2024-07-27.768×1024.webp',
+  '2025-03-08.768×1024.webp',
+  '2025-03-25.768×1024.webp',
+  '2025-07-13.768×1024.webp',
+  '2025-08-14.1024×768.webp',
+  '2025-11-08.1024×768.webp',
+  '2025-12-21.768×1024.webp',
+  '2025-12-22.768×1024.webp',
+  '2026-01-17.886×886.webp',
+  '2026-02-17.768×1024.webp',
+  '2026-02-23.768×1024.webp',
+  '2026-03-12.768×1024.webp',
+  '2026-03-20.1024×768.webp',
+  '2026-05-11.1024×768.webp',
+])
+
 const SKIP = new Set(['package.json', 'package-lock.json', 'rename.js', 'clean-meta.js', 'prep-photos.js'])
 const IMG_RE = /\.(jpe?g|png|webp|svg)$/i
 const DIM_RE = /^(\d+)[×xX](\d+)$/
@@ -175,6 +232,13 @@ function parseName (name, full) {
 
 // ── main ──
 if (!fs.existsSync(DIR)) { console.log(`[prep-photos] 目录不存在, 跳过: ${DIR}`); process.exit(0) }
+
+let removedDemo = 0
+for (const name of DEMO_ASSETS) {
+  const demoPath = path.join(DIR, name)
+  if (fs.existsSync(demoPath)) { fs.rmSync(demoPath); removedDemo++ }
+}
+if (removedDemo) console.log('[prep-photos] removed template demo photos: ' + removedDemo)
 
 const files = fs.readdirSync(DIR).filter((f) => IMG_RE.test(f) && !SKIP.has(f) && fs.statSync(path.join(DIR, f)).isFile())
 console.log(`[prep-photos] ${DIR} 中找到 ${files.length} 个图片`)
