@@ -9,11 +9,12 @@ type Dict = Record<string, string>
 const STRINGS: Record<string, Dict> = {
   // (The page title now comes from the subject name + per-language templates —
   // see resolveTitle below and src/config/site.config.ts.)
-  // View modes — random (free scatter) / sequential (timeline) / stage (mosaic grid).
+  // View modes — random (auto scatter slideshow) / sequential (timeline) / stage
+  // (mosaic grid). The first tab is labelled 回顾 ("looking back") in Chinese.
   'tab.random': {
-    zh: '随心', en: 'Free', ja: '気まま', ko: '자유', fr: 'Libre', de: 'Frei',
-    es: 'Libre', pt: 'Livre', it: 'Libero', ru: 'Свободно', ar: 'حر',
-    hi: 'स्वच्छंद', th: 'อิสระ', vi: 'Tự do', tr: 'Serbest', nl: 'Vrij',
+    zh: '回顾', en: 'Replay', ja: '回想', ko: '회고', fr: 'Replay', de: 'Rückblick',
+    es: 'Replay', pt: 'Replay', it: 'Replay', ru: 'Воспоминания', ar: 'استرجاع',
+    hi: 'स्मरण', th: 'ย้อนดู', vi: 'Hồi tưởng', tr: 'Anımsa', nl: 'Terugblik',
   },
   'tab.sequential': {
     zh: '时光', en: 'Timeline', ja: '時系列', ko: '시간순', fr: 'Chronologie',

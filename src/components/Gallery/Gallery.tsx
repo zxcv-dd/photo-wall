@@ -92,6 +92,12 @@ const CARD_BASE_MAX = 19
 const FRONT_BAND_START = 20
 const FRONT_BAND_END = 139
 
+// 回顾 (the first tab) is an auto-playing scatter slideshow: every few seconds a new
+// batch of photos drops in while the previous batch falls away. It is not clickable.
+const SLIDESHOW_INTERVAL = 5200
+const SLIDESHOW_LEAVE_MS = 640
+const SLIDESHOW_STAGGER_MS = 45
+
 const Gallery = ({ onLightboxChange }: GalleryProps) => {
 
   // Context
@@ -272,6 +278,62 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
     onLightboxChange?.(lightboxOpen)
   }, [lightboxOpen, onLightboxChange])
 
+  // ── 回顾 slideshow ──────────────────────────────────────────────────────────
+  // Photos are dealt out in batches and scattered down into their random spots,
+  // then fall away as the next batch arrives. Nothing in this view is clickable.
+  const isSlideshow = viewMode === GalleryViewMode.random
+  const [slideFrame, setSlideFrame] = useState(0)
+  const [slideLeaving, setSlideLeaving] = useState<number[]>([])
+  const slideBatchRef = useRef<number[]>([])
+
+  useEffect(() => {
+    if (!isSlideshow) {
+      setSlideFrame(0)
+      setSlideLeaving([])
+      slideBatchRef.current = []
+      return
+    }
+    const id = window.setInterval(() => {
+      // Don't churn while the tab is in the background.
+      if (document.visibilityState === 'visible') setSlideFrame((frame) => frame + 1)
+    }, SLIDESHOW_INTERVAL)
+    return () => window.clearInterval(id)
+  }, [isSlideshow])
+
+  const slideBatch = useMemo<number[] | null>(() => {
+    if (!isSlideshow || !data.length) return null
+    // Enough cards to fill the screen at the current card size.
+    const perScreen = Math.round((screenSize.width * screenSize.height) / 42000)
+    const size = Math.min(data.length, Math.max(9, Math.min(26, perScreen || 9)))
+    const frames = Math.ceil(data.length / size)
+    const start = ((slideFrame % frames) * size) % data.length
+    const batch: number[] = []
+    for (let i = 0; i < size; i++) batch.push((start + i) % data.length)
+    return batch
+  }, [isSlideshow, data, slideFrame, screenSize.width, screenSize.height])
+
+  useEffect(() => {
+    if (!slideBatch) return
+    const previous = slideBatchRef.current
+    slideBatchRef.current = slideBatch
+    if (!previous.length) return
+    setSlideLeaving(previous)
+    const timer = window.setTimeout(() => setSlideLeaving([]), SLIDESHOW_LEAVE_MS)
+    return () => window.clearTimeout(timer)
+  }, [slideBatch])
+
+  const slideShown = useMemo(() => {
+    if (!slideBatch) return null
+    const phase = new Map<number, 'in' | 'out'>()
+    const delay = new Map<number, number>()
+    slideLeaving.forEach((index) => phase.set(index, 'out'))
+    slideBatch.forEach((index, position) => {
+      phase.set(index, 'in')
+      delay.set(index, position * SLIDESHOW_STAGGER_MS)
+    })
+    return { phase, delay }
+  }, [slideBatch, slideLeaving])
+
   const handleTitleClick = useCallback(() => scrollTo(0), [scrollTo])
   const handleTrackClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return
@@ -346,18 +408,25 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
           ))
         }
         {
-          isInitialized && data.map((item, index) => (
+          isInitialized && data.map((item, index) => {
+            // 回顾: only the current batch (plus the one falling away) is on stage.
+            if (slideShown && !slideShown.phase.has(index)) return null
+            return (
             <Picture
               key={item.pic.path}
               index={index}
               pic={item.pic}
               rect={item.rect}
-              draggable={viewMode === GalleryViewMode.random}
+              // 回顾 is a slideshow: no dragging, no opening.
+              draggable={false}
               highlightTuning={highlightTuning}
               dragTuning={dragTuning}
               stackIndex={stackIndexes[item.pic.path] ?? index + 1}
               shuffleToken={shuffleTokens[item.pic.path] ?? 0}
               onRequestFront={handleRequestFront}
+              slideshow={isSlideshow}
+              slidePhase={slideShown?.phase.get(index)}
+              slideDelay={slideShown?.delay.get(index) ?? 0}
               lightbox={index === lightboxIndex}
               // Only the lightbox card reads lightboxOpen; feeding `false` to the
               // rest keeps the prop referentially stable so React.memo can skip
@@ -368,7 +437,8 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
               onClose={handleClose}
               expandedScroll={index === lightboxIndex ? expandedScroll : undefined}
             />
-          ))
+            )
+          })
         }
 
         <div

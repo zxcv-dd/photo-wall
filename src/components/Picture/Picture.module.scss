@@ -97,6 +97,16 @@
       animation: shuffleFront 0.24s cubic-bezier(0.23, 1, 0.32, 1);
     }
 
+    // Slideshow (回顾): photos scatter down into place, then fall away again.
+    // `both` keeps the start state before the stagger delay and the end state after.
+    &.imageWrapperSlideIn {
+      animation: slideDropIn 0.72s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    &.imageWrapperSlideOut {
+      animation: slideFallOut 0.6s cubic-bezier(0.4, 0, 1, 1) both;
+    }
+
     .mediaFrame {
       position: relative;
       overflow: hidden;
@@ -201,6 +211,31 @@
   }
 }
 
+@keyframes slideDropIn {
+  0% {
+    transform: translate3d(0, -64px, 0) rotate(-4deg) scale(1.09);
+    opacity: 0;
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes slideFallOut {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(0, 30px, 0) rotate(1.6deg) scale(0.93);
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dragLayer,
   .dragLayer.dragLayerDragging,
@@ -214,7 +249,9 @@
     animation: none;
   }
 
-  .picture .imageWrapper.imageWrapperShuffle {
+  .picture .imageWrapper.imageWrapperShuffle,
+  .picture .imageWrapper.imageWrapperSlideIn,
+  .picture .imageWrapper.imageWrapperSlideOut {
     animation: none;
   }
 }

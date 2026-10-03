@@ -21,6 +21,8 @@ const CARD_PAD = (PICTURE_INNER_PADDING + PARALLAX_INNER_PADDING) * 2
 const LABEL_H = PICTURE_LABEL_LINE_HEIGHT + PICTURE_LABEL_MARGIN_TOP + PICTURE_LABEL_MARGIN_BOTTOM
 const DRAG_THRESHOLD = 6
 const GLARE_DEFAULT = { x: 50, y: 50 }
+// How far outside the viewport a card may sit before it is unmounted again.
+const UNMOUNT_DISTANCE = 3000
 const DRAG_VELOCITY_BLEND = 0.24
 const DRAG_LAG_FACTOR = 18
 const DRAG_ACCEL_LAG_FACTOR = 120
@@ -145,6 +147,11 @@ interface Props {
   onExpand?: (index: number) => void
   onClose?: () => void
   expandedScroll?: number
+  // Slideshow (随心): the card plays its scatter-in / fade-out animation and cannot
+  // be opened — clicking anywhere does nothing.
+  slideshow?: boolean
+  slidePhase?: 'in' | 'out'
+  slideDelay?: number
 }
 
 const Picture = React.memo(({
@@ -161,7 +168,10 @@ const Picture = React.memo(({
   lightboxOpen,
   onExpand,
   onClose,
-  expandedScroll
+  expandedScroll,
+  slideshow = false,
+  slidePhase,
+  slideDelay = 0
 }: Props) => {
 
   const { screenSize } = useContext(AppContext)
@@ -203,7 +213,18 @@ const Picture = React.memo(({
       return
     }
     const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) setVisible(true)
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          setVisible(true)
+          continue
+        }
+        // Unmount again once the card is far offscreen: hundreds of mounted 2560px
+        // photos are what made flicking through the gallery stutter on a phone.
+        // The placeholder stays behind, so the layout never shifts.
+        const r = entry.boundingClientRect
+        const distance = r.top > 0 ? r.top - window.innerHeight : -r.bottom
+        if (distance > UNMOUNT_DISTANCE) setVisible(false)
+      }
     }, { rootMargin: '600px 0px 600px 0px' })
     observer.observe(el)
     return () => observer.disconnect()
@@ -482,6 +503,8 @@ const Picture = React.memo(({
   }
 
   const handleClick = useCallback(() => {
+    // Slideshow: photos are for looking at, not opening.
+    if (slideshow) return
     if (suppressClickRef.current) {
       suppressClickRef.current = false
       return
@@ -494,9 +517,16 @@ const Picture = React.memo(({
       // click look like it flashed before the photo opened.
       onExpand?.(index)
     }
-  }, [isExpanded, loaded, onExpand, onClose, index])
+  }, [isExpanded, loaded, onExpand, onClose, index, slideshow])
 
   const dragTransform = `translate3d(${baseLeft}px, ${baseTop}px, 0) translate(${flip.dx}px, ${flip.dy}px) scale(${flip.sx}, ${flip.sy})`
+  // Slideshow entrance/exit (scatter in, fade out) — driven by the batch Gallery
+  // hands down, so a card animates every time it appears.
+  const slideClass = slideshow && slidePhase === 'in'
+    ? ` ${styles.imageWrapperSlideIn}`
+    : slideshow && slidePhase === 'out'
+      ? ` ${styles.imageWrapperSlideOut}`
+      : ''
   const dragPoseStyle = useMemo(() => ({
     transform: `translate3d(${dragPose.shiftX}px, ${dragPose.shiftY}px, 0) rotateX(${dragPose.rotateX}deg) rotateY(${dragPose.rotateY}deg) rotateZ(${dragPose.rotateZ}deg) scale(${dragPose.scale})`,
     transformOrigin: `${dragPose.originX}% ${dragPose.originY}%`,
@@ -562,7 +592,7 @@ const Picture = React.memo(({
       >
         <div ref={dragPoseRef} className={`${styles.dragPose}${dragging ? ` ${styles.dragPoseActive}` : ''}`} style={dragPoseStyle}>
           <Parallax innerClassName={styles.parallax} rectSourceRef={dragPoseRef}>
-            <div className={`${styles.imageWrapper}${shuffleActive ? ` ${styles.imageWrapperShuffle}` : ''}`} style={{ padding: PICTURE_INNER_PADDING }}>
+            <div className={`${styles.imageWrapper}${shuffleActive ? ` ${styles.imageWrapperShuffle}` : ''}${slideClass}`} style={{ padding: PICTURE_INNER_PADDING, animationDelay: slideClass && slideDelay ? `${slideDelay}ms` : undefined }}>
               <div className={styles.mediaFrame} ref={mediaFrameRef} style={glareStyle}>
                 <img
                   className={styles.image}
