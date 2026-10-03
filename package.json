@@ -31,6 +31,7 @@
     "start": "react-scripts start",
     "setup": "node ./scripts/setup.js",
     "build:code": "node ./scripts/build-code.js",
+    "build:photo-prep": "node ./scripts/prep-photos.js",
     "build:photo-rename": "node ./src/assets/rename.js",
     "build:photo-clean-meta": "node ./src/assets/clean-meta.js",
     "build:photo-optimize": "node ./scripts/optimize-photos.js",
