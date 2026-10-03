@@ -81,6 +81,17 @@ interface GalleryProps {
   onLightboxChange?: (open: boolean) => void
 }
 
+// Card stacking bands. The dim overlay sits at z-index 150 and the enlarged photo
+// at 200 (see Gallery.module.scss / Picture.tsx), so cards MUST stay below 150:
+// otherwise a photo the visitor already clicked — which is raised to the front —
+// ends up painted over the lightbox overlay and over the next photo they open
+// (that is the "already-viewed photo covers the one I just clicked" glitch).
+// Never-clicked cards use 1..CARD_BASE_MAX; click-recency cards use the band above
+// it, bounded by FRONT_BAND_END.
+const CARD_BASE_MAX = 19
+const FRONT_BAND_START = 20
+const FRONT_BAND_END = 139
+
 const Gallery = ({ onLightboxChange }: GalleryProps) => {
 
   // Context
@@ -93,7 +104,10 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
   // Category view: the labelled section bands drawn above their group of photos.
   const [categorySections, setCategorySections] = useState<CategorySection[]>([])
   const stackIndexesRef = useRef<Record<string, number>>({})
-  const frontCounterRef = useRef(0)
+  // Paths the visitor has raised to the front, oldest first (last = front-most).
+  // Kept as an explicit recency list instead of an ever-growing counter so card
+  // z-indexes can never drift up into the overlay/lightbox bands.
+  const frontOrderRef = useRef<string[]>([])
 
   // View Mode + sort direction. Clicking a non-active tab switches view; clicking
   // the already-active tab flips the sort order (asc = oldest→newest, top→bottom).
@@ -192,12 +206,12 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
   }, [isInitialized, screenSize, viewMode, sortOrder, lang])
 
   useEffect(() => {
+    frontOrderRef.current = []
     const nextIndexes = data.reduce((acc, item, index) => {
-      acc[item.pic.path] = index + 1
+      acc[item.pic.path] = Math.min(index + 1, CARD_BASE_MAX)
       return acc
     }, {} as Record<string, number>)
     stackIndexesRef.current = nextIndexes
-    frontCounterRef.current = data.length
     setStackIndexes(nextIndexes)
     setShuffleTokens({})
   }, [data])
@@ -269,16 +283,20 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
     const target = data[index]
     if (!target) return false
     const path = target.pic.path
-    const current = stackIndexesRef.current[path] ?? 0
-    const currentFront = frontCounterRef.current
-    if (current >= currentFront) return false
+    const order = frontOrderRef.current
+    if (order[order.length - 1] === path) return false
 
-    const nextFront = currentFront + 1
-    frontCounterRef.current = nextFront
-    const nextIndexes = {
-      ...stackIndexesRef.current,
-      [path]: nextFront,
-    }
+    const nextOrder = order.filter((p) => p !== path)
+    nextOrder.push(path)
+    // Oldest entries fall back to the base band once the front band is full.
+    while (nextOrder.length > FRONT_BAND_END - FRONT_BAND_START + 1) nextOrder.shift()
+    frontOrderRef.current = nextOrder
+
+    const nextIndexes = data.reduce((acc, item, i) => {
+      acc[item.pic.path] = Math.min(i + 1, CARD_BASE_MAX)
+      return acc
+    }, {} as Record<string, number>)
+    nextOrder.forEach((p, i) => { nextIndexes[p] = FRONT_BAND_START + i })
     stackIndexesRef.current = nextIndexes
     setStackIndexes(nextIndexes)
 
