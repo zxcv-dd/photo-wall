@@ -18,8 +18,8 @@ import {
   PictureHighlightTuning
 } from 'components/Picture/Picture.constant'
 import { TabItemIdentifier } from 'components/Tab/Tab.constant'
-import { GalleryViewMode, SAFE_LABEL_HEIGHT, SAFE_PADDING, SEQUENTIAL_BREAK_POINT, STAGE_BREAK_POINT } from 'components/Gallery/Gallery.constant'
-import { getColumnSlot, getRandomRect, getSequentialRect, getStageRect } from './Gallery.utils'
+import { CATEGORY_HEADER_HEIGHT, GalleryViewMode, SAFE_LABEL_HEIGHT, SAFE_PADDING, SEQUENTIAL_BREAK_POINT, STAGE_BREAK_POINT } from 'components/Gallery/Gallery.constant'
+import { CategorySection, getCategoryLayout, getColumnSlot, getRandomRect, getSequentialRect, getStageRect } from './Gallery.utils'
 import { useCustomScroll } from './Gallery.hook'
 
 const IS_DEV = process.env.NODE_ENV === 'development'
@@ -29,7 +29,10 @@ const DEFAULT_WHEEL_EXIT_THRESHOLD = 70
 
 // Stable tab order — hoisted so Tab receives the same array reference every render
 // (a fresh literal would re-trigger Tab's measurement effect needlessly).
-const VIEW_ITEMS = [GalleryViewMode.random, GalleryViewMode.sequential, GalleryViewMode.stage]
+const VIEW_ITEMS = [GalleryViewMode.random, GalleryViewMode.sequential, GalleryViewMode.stage, GalleryViewMode.category]
+
+// Sentinel bucket for photos whose filename carries no category segment.
+const UNCATEGORIZED = '__uncategorized__'
 
 // Debug-panel language choices. zh-CN / zh-TW are split out so the donate modal's
 // Simplified-Chinese-only QR gating can be exercised; the rest cover the titles.
@@ -87,6 +90,8 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
   const [data, setData] = useState<{ pic: Pic; rect: Rect }[]>([])
   const [stackIndexes, setStackIndexes] = useState<Record<string, number>>({})
   const [shuffleTokens, setShuffleTokens] = useState<Record<string, number>>({})
+  // Category view: the labelled section bands drawn above their group of photos.
+  const [categorySections, setCategorySections] = useState<CategorySection[]>([])
   const stackIndexesRef = useRef<Record<string, number>>({})
   const frontCounterRef = useRef(0)
 
@@ -132,6 +137,9 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
       // Apply sort direction by reversing the (chronological) source order; the
       // layout functions place pics in array order, so this flips the timeline.
       const ordered = sortOrder === 'desc' ? [...GALLERY_DATA].reverse() : GALLERY_DATA
+      // Only the category view has section bands; clear any stale ones so a mode
+      // switch can never leave headers floating over another layout.
+      setCategorySections([])
       // Fill by modes
       switch (viewMode) {
         case GalleryViewMode.random:
@@ -158,9 +166,30 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
             return { pic, rect }
           }))
           break
+        case GalleryViewMode.category: {
+          // Group by the filename's category segment; groups appear in the order
+          // their first (oldest) photo does, with the uncategorized bucket last.
+          const buckets = new Map<string, Pic[]>()
+          ordered.forEach((pic) => {
+            const key = pic.category || UNCATEGORIZED
+            const bucket = buckets.get(key)
+            if (bucket) bucket.push(pic)
+            else buckets.set(key, [pic])
+          })
+          const groups = Array.from(buckets.keys())
+            .sort((a, b) => (a === UNCATEGORIZED ? 1 : 0) - (b === UNCATEGORIZED ? 1 : 0))
+            .map((key) => ({
+              label: key === UNCATEGORIZED ? t('category.uncategorized', lang) : key,
+              pics: buckets.get(key) || []
+            }))
+          const layout = getCategoryLayout(groups, screenSize)
+          setData(layout.items)
+          setCategorySections(layout.sections)
+          break
+        }
       }
     }
-  }, [isInitialized, screenSize, viewMode, sortOrder])
+  }, [isInitialized, screenSize, viewMode, sortOrder, lang])
 
   useEffect(() => {
     const nextIndexes = data.reduce((acc, item, index) => {
@@ -267,6 +296,7 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
     [GalleryViewMode.random]: t('tab.random', lang),
     [GalleryViewMode.sequential]: t('tab.sequential', lang),
     [GalleryViewMode.stage]: t('tab.stage', lang),
+    [GalleryViewMode.category]: t('tab.category', lang),
   }), [lang])
 
   return (
@@ -284,6 +314,19 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
       </header>
 
       <div className={styles.scroller} ref={scrollerRef}>
+        {
+          viewMode === GalleryViewMode.category && categorySections.map((section) => (
+            <div
+              key={section.top}
+              className={styles.categoryHeader}
+              style={{ top: section.top, height: CATEGORY_HEADER_HEIGHT, left: SAFE_PADDING }}
+              aria-hidden="true"
+            >
+              <span className={styles.categoryLabel}>{section.label}</span>
+              <span className={styles.categoryCount}>{section.count}</span>
+            </div>
+          ))
+        }
         {
           isInitialized && data.map((item, index) => (
             <Picture
