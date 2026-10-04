@@ -41,6 +41,13 @@ const STRINGS: Record<string, Dict> = {
     ru: 'Без раздела', ar: 'غير مصنّف', hi: 'अवर्गीकृत', th: 'ไม่จัดหมวด',
     vi: 'Chưa phân loại', tr: 'Sınıflandırılmamış', nl: 'Ongecategoriseerd',
   },
+  // Download button on the enlarged photo.
+  'lightbox.download': {
+    zh: '下载这张', en: 'Download', ja: 'ダウンロード', ko: '다운로드', fr: 'Télécharger',
+    de: 'Herunterladen', es: 'Descargar', pt: 'Baixar', it: 'Scarica',
+    ru: 'Скачать', ar: 'تنزيل', hi: 'डाउनलोड', th: 'ดาวน์โหลด',
+    vi: 'Tải xuống', tr: 'İndir', nl: 'Downloaden',
+  },
   // Mos dock tagline.
   'mos.tagline': {
     zh: '让鼠标变得顺滑',
