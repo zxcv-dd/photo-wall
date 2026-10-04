@@ -115,8 +115,14 @@ export const getSlideshowRects = (
     const row = Math.floor(position / cols)
     const cardW = width + SAFE_PADDING * 2
     const cardH = height + SAFE_PADDING * 2 + SAFE_LABEL_HEIGHT
-    const left = SAFE_PADDING + col * cellW + (cellW - cardW) / 2 + range(-cellW * JITTER, cellW * JITTER)
-    const top = headerInset + row * cellH + (cellH - cardH) / 2 + range(-cellH * JITTER, cellH * JITTER)
+    const centreLeft = SAFE_PADDING + col * cellW + (cellW - cardW) / 2 + range(-cellW * JITTER, cellW * JITTER)
+    const centreTop = headerInset + row * cellH + (cellH - cardH) / 2 + range(-cellH * JITTER, cellH * JITTER)
+    // Clamp so a jittered card can never hang off the screen: on a phone the last
+    // column/row used to be cut off by the viewport edge ("显示不完全").
+    const maxLeft = Math.max(SAFE_PADDING, screenSize.width - cardW - SAFE_PADDING)
+    const maxTop = Math.max(headerInset, screenSize.height - cardH - SAFE_PADDING)
+    const left = Math.min(Math.max(centreLeft, SAFE_PADDING), maxLeft)
+    const top = Math.min(Math.max(centreTop, headerInset), maxTop)
     const angle = range(-6, 6)
     rects.set(index, {
       left,
