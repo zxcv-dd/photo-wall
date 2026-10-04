@@ -102,6 +102,8 @@ const SLIDESHOW_STAGGER_TARGET_MS = 4200
 const SLIDESHOW_STAGGER_MIN_MS = 180
 const SLIDESHOW_STAGGER_MAX_MS = 520
 const SLIDESHOW_LEAVE_MS = 900
+// Distance from the bottom of the visible area to the download button.
+const DOWNLOAD_BOTTOM_INSET = 88
 
 const Gallery = ({ onLightboxChange }: GalleryProps) => {
 
@@ -479,6 +481,23 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
           style={lightboxIndex !== null ? { top: expandedScroll, height: screenSize.height } : undefined}
           onClick={handleClose}
         />
+
+        {/* Download the photo that is currently enlarged. Sits above the overlay (and
+            above the enlarged card at z 200) so tapping it never closes the lightbox;
+            it is anchored the same way as the overlay so it lands at the bottom of
+            the visible area on both the transform scroller and the native one. */}
+        {lightboxOpen && lightboxIndex !== null && data[lightboxIndex] && (
+          <a
+            className={styles.download}
+            href={data[lightboxIndex].pic.path}
+            download={`${data[lightboxIndex].pic.title || data[lightboxIndex].pic.date || 'photo'}.webp`}
+            style={{ top: expandedScroll + screenSize.height - DOWNLOAD_BOTTOM_INSET }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className={styles.downloadArrow} aria-hidden="true">↓</span>
+            {t('lightbox.download', lang)}
+          </a>
+        )}
 
         {/* Gives the native (touch) scroller its scroll height; invisible on desktop. */}
         <div className={styles.scrollSpacer} style={{ height: contentHeight }} aria-hidden="true" />

@@ -158,6 +158,45 @@
   }
 }
 
+// Download button shown with the enlarged photo. Sits above the overlay (150) and the
+// enlarged card (200) so it stays clickable while the lightbox is open.
+.download {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 220;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 11px 20px;
+  border-radius: 999px;
+  font-size: 14px;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  color: var(--ink, #f5f2ee);
+  background-color: rgba(24, 21, 18, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(6px);
+  transition: background-color 0.2s ease-out, transform 0.2s ease-out;
+  // Comfortable tap target on a phone.
+  min-height: 42px;
+
+  &:hover {
+    background-color: rgba(38, 33, 28, 0.86);
+    transform: translateX(-50%) scale(1.04);
+  }
+
+  &:active {
+    transform: translateX(-50%) scale(0.97);
+  }
+}
+
+.downloadArrow {
+  font-size: 16px;
+  line-height: 1;
+}
+
 .scrollbar {
   position: fixed;
   top: 0;
