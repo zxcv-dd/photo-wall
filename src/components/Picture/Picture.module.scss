@@ -32,15 +32,11 @@
   contain-intrinsic-size: auto 320px 320px;
 }
 
-// Phones: with hundreds of large photos mounted, letting the browser skip
-// layout/paint for the ones that are scrolled out of view is the difference between
-// smooth flicking and a stuttering gallery.
-@media (max-width: 700px) {
-  .dragLayer {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 320px 320px;
-  }
-}
+// NOTE: do NOT put `content-visibility` on .dragLayer. It implies `contain: paint`,
+// which clips descendants to the card's own thumbnail-sized box — and the lightbox
+// enlarges the photo with a transform on a descendant, so on phones the enlarged
+// photo came out sliced and half off-screen. Offscreen cards are unmounted in
+// Picture.tsx instead, which bounds the DOM without clipping anything.
 
 .dragPose {
   transform-style: preserve-3d;
