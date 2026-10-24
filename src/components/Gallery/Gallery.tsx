@@ -18,7 +18,7 @@ import {
   PictureHighlightTuning
 } from 'components/Picture/Picture.constant'
 import { TabItemIdentifier } from 'components/Tab/Tab.constant'
-import { CATEGORY_HEADER_HEIGHT, GalleryViewMode, SAFE_LABEL_HEIGHT, SAFE_PADDING, SEQUENTIAL_BREAK_POINT, STAGE_BREAK_POINT, categoryYear, isFeaturePic } from 'components/Gallery/Gallery.constant'
+import { CATEGORY_HEADER_HEIGHT, GalleryViewMode, SAFE_LABEL_HEIGHT, SAFE_PADDING, SEQUENTIAL_BREAK_POINT, STAGE_BREAK_POINT, categoryYear, compareFeaturePics, isFeaturePic } from 'components/Gallery/Gallery.constant'
 import { CategorySection, getCategoryLayout, getColumnSlot, getRandomRect, getSequentialRect, getSlideshowRects, getStageRect } from './Gallery.utils'
 import { useCustomScroll } from './Gallery.hook'
 
@@ -178,8 +178,12 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
         case GalleryViewMode.sequential:
           // 庆典: the anniversary feature view shows only the event photos, not the
           // whole archive. Falls back to everything if those categories are absent.
-          const featurePics = ordered.filter(isFeaturePic)
-          const sequentialPics = featurePics.length ? featurePics : ordered
+          // 庆典 tab orders the anniversary photos explicitly: 庆典 before 团建, and
+          // within each event 分享→现场 / 草坪→晚会, photo number ascending.
+          const featurePics = ordered.filter(isFeaturePic).sort(compareFeaturePics)
+          const sequentialPics = featurePics.length
+            ? (sortOrder === 'desc' ? [...featurePics].reverse() : featurePics)
+            : ordered
           const sequentialColumns = {
             current: new Array(getColumnSlot(screenSize, SEQUENTIAL_BREAK_POINT)).fill(0).map(_ => []) as Rect[][]
           }

@@ -52,6 +52,37 @@ export const FEATURE_LABEL_PREFIXES = ['26年庆典', '26年团建']
 export const isFeaturePic = (pic: { date?: string }): boolean =>
   FEATURE_LABEL_PREFIXES.some((prefix) => (pic.date || '').startsWith(prefix))
 
+// Order of the sub-groups inside the feature view: the ceremony first, then the
+// team-building (团建 always ends up last), each in the order the day happened.
+const FEATURE_GROUP_ORDER = ['分享', '现场', '草坪', '晚会']
+
+// "26年庆典·分享-3" -> { prefix: '26年庆典', group: '分享', index: 3 }
+const parseFeatureCaption = (caption: string) => {
+  const [head, rest = ''] = caption.split('\u00b7')
+  const dash = rest.lastIndexOf('-')
+  return {
+    prefix: head || caption,
+    group: dash >= 0 ? rest.slice(0, dash) : rest,
+    index: dash >= 0 ? Number(rest.slice(dash + 1)) || 0 : 0,
+  }
+}
+
+// Deterministic order for the 庆典 tab: event order first (庆典 before 团建), then the
+// sub-group order, then the photo number (so -2 comes before -10).
+export const compareFeaturePics = (a: { date?: string }, b: { date?: string }): number => {
+  const pa = parseFeatureCaption(a.date || '')
+  const pb = parseFeatureCaption(b.date || '')
+  const ra = FEATURE_LABEL_PREFIXES.indexOf(pa.prefix)
+  const rb = FEATURE_LABEL_PREFIXES.indexOf(pb.prefix)
+  if (ra !== rb) return ra - rb
+  const ga = FEATURE_GROUP_ORDER.indexOf(pa.group)
+  const gb = FEATURE_GROUP_ORDER.indexOf(pb.group)
+  const na = ga < 0 ? FEATURE_GROUP_ORDER.length : ga
+  const nb = gb < 0 ? FEATURE_GROUP_ORDER.length : gb
+  if (na !== nb) return na - nb
+  return pa.index - pb.index
+}
+
 // Pulls the leading year out of a category label ("2014欢送" -> 2014, "回忆" -> null)
 // so the category view can be ordered chronologically.
 export const categoryYear = (category: string): number | null => {
