@@ -16,17 +16,19 @@ const STRINGS: Record<string, Dict> = {
     es: 'Replay', pt: 'Replay', it: 'Replay', ru: 'Воспоминания', ar: 'استرجاع',
     hi: 'स्मरण', th: 'ย้อนดู', vi: 'Hồi tưởng', tr: 'Anımsa', nl: 'Terugblik',
   },
+  // The second tab is the anniversary feature timeline; the third is the full
+  // chronological mosaic, so it carries the 时光 name.
   'tab.sequential': {
+    zh: '庆典', en: 'Celebration', ja: '記念式典', ko: '기념식', fr: 'Célébration',
+    de: 'Jubiläum', es: 'Celebración', pt: 'Celebração', it: 'Celebrazione',
+    ru: 'Юбилей', ar: 'احتفال', hi: 'समारोह', th: 'งานฉลอง',
+    vi: 'Lễ kỷ niệm', tr: 'Kutlama', nl: 'Jubileum',
+  },
+  'tab.stage': {
     zh: '时光', en: 'Timeline', ja: '時系列', ko: '시간순', fr: 'Chronologie',
     de: 'Zeitleiste', es: 'Cronología', pt: 'Cronologia', it: 'Cronologia',
     ru: 'Хронология', ar: 'زمني', hi: 'समयरेखा', th: 'ไทม์ไลน์',
     vi: 'Dòng thời gian', tr: 'Zaman çizgisi', nl: 'Tijdlijn',
-  },
-  'tab.stage': {
-    zh: '拼图', en: 'Mosaic', ja: 'モザイク', ko: '모자이크', fr: 'Mosaïque',
-    de: 'Mosaik', es: 'Mosaico', pt: 'Mosaico', it: 'Mosaico', ru: 'Мозаика',
-    ar: 'فسيفساء', hi: 'मोज़ेक', th: 'โมเสก', vi: 'Ghép hình', tr: 'Mozaik',
-    nl: 'Mozaïek',
   },
   'tab.category': {
     zh: '分类', en: 'Sections', ja: '分類', ko: '분류', fr: 'Rubriques',

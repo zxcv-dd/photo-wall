@@ -18,7 +18,7 @@ import {
   PictureHighlightTuning
 } from 'components/Picture/Picture.constant'
 import { TabItemIdentifier } from 'components/Tab/Tab.constant'
-import { CATEGORY_HEADER_HEIGHT, GalleryViewMode, SAFE_LABEL_HEIGHT, SAFE_PADDING, SEQUENTIAL_BREAK_POINT, STAGE_BREAK_POINT } from 'components/Gallery/Gallery.constant'
+import { CATEGORY_HEADER_HEIGHT, GalleryViewMode, SAFE_LABEL_HEIGHT, SAFE_PADDING, SEQUENTIAL_BREAK_POINT, STAGE_BREAK_POINT, categoryYear, isFeaturePic } from 'components/Gallery/Gallery.constant'
 import { CategorySection, getCategoryLayout, getColumnSlot, getRandomRect, getSequentialRect, getSlideshowRects, getStageRect } from './Gallery.utils'
 import { useCustomScroll } from './Gallery.hook'
 
@@ -176,10 +176,14 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
           }))
           break
         case GalleryViewMode.sequential:
+          // 庆典: the anniversary feature view shows only the event photos, not the
+          // whole archive. Falls back to everything if those categories are absent.
+          const featurePics = ordered.filter(isFeaturePic)
+          const sequentialPics = featurePics.length ? featurePics : ordered
           const sequentialColumns = {
             current: new Array(getColumnSlot(screenSize, SEQUENTIAL_BREAK_POINT)).fill(0).map(_ => []) as Rect[][]
           }
-          setData(ordered.map(pic => {
+          setData(sequentialPics.map(pic => {
             const rect = getSequentialRect(pic, screenSize, sequentialColumns)
             return { pic, rect }
           }))
@@ -194,8 +198,9 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
           }))
           break
         case GalleryViewMode.category: {
-          // Group by the filename's category segment; groups appear in the order
-          // their first (oldest) photo does, with the uncategorized bucket last.
+          // Group by the filename's category segment. Sections run in strict
+          // chronological order: dated categories by year (oldest first), then the
+          // undated thematic ones (合照/回忆/成果…), with the uncategorized bucket last.
           const buckets = new Map<string, Pic[]>()
           ordered.forEach((pic) => {
             const key = pic.category || UNCATEGORIZED
@@ -203,8 +208,20 @@ const Gallery = ({ onLightboxChange }: GalleryProps) => {
             if (bucket) bucket.push(pic)
             else buckets.set(key, [pic])
           })
+          const rank = (key: string) => {
+            if (key === UNCATEGORIZED) return 3
+            return categoryYear(key) === null ? 2 : 1
+          }
           const groups = Array.from(buckets.keys())
-            .sort((a, b) => (a === UNCATEGORIZED ? 1 : 0) - (b === UNCATEGORIZED ? 1 : 0))
+            .sort((a, b) => {
+              const ra = rank(a)
+              const rb = rank(b)
+              if (ra !== rb) return ra - rb
+              const ya = categoryYear(a)
+              const yb = categoryYear(b)
+              if (ya !== null && yb !== null && ya !== yb) return ya - yb
+              return a.localeCompare(b, 'zh-Hans-CN')
+            })
             .map((key) => ({
               label: key === UNCATEGORIZED ? t('category.uncategorized', lang) : key,
               pics: buckets.get(key) || []

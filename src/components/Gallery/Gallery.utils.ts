@@ -205,28 +205,33 @@ const getStageSize = (screenSize: Size, data: Pic, column: ReturnType<typeof get
   let height: number
   const isRandomSquare = range(0, 5) < 1
   const horizontalGap = SAFE_PADDING * 2 * (STAGE_HORIZONTAL_BASE_CONTINUOUS - 1)
-  const verticalGap = (SAFE_PADDING * 2 + SAFE_LABEL_HEIGHT) * (STAGE_VERTICAL_BASE_CONTINUOUS - 1)
+  // The box height follows the photo's real aspect ratio (clamped), so a portrait
+  // photo is no longer squeezed into a fixed-height slot and cropped by
+  // `object-fit: cover` — that is what cut the top and bottom off vertical shots.
+  const minHeight = base * 0.5
+  const maxHeight = base * STAGE_VERTICAL_BASE_CONTINUOUS * 1.2
+  const heightFor = (w: number) => Math.min(Math.max(w / (data.aspectRatio || 1), minHeight), maxHeight)
   if (data.aspectRatio > STAGE_RATIO_BREAK_POINT.HORIZONTAL && column.fitHorizontal && !isRandomSquare) {
     // Horizontal
     slot = STAGE_HORIZONTAL_BASE_CONTINUOUS
     width = base * STAGE_HORIZONTAL_BASE_CONTINUOUS + horizontalGap
-    height = base
+    height = heightFor(width)
   } else if (data.aspectRatio < STAGE_RATIO_BREAK_POINT.VERTICAL && !isRandomSquare) {
     // Vertical
     slot = 1
     width = base
-    height = base * STAGE_VERTICAL_BASE_CONTINUOUS + verticalGap
+    height = heightFor(width)
   } else {
     // Square
     const isRandomSquareLarge = range(0, 3) < 1
     if (isRandomSquareLarge && column.fitHorizontal) {
       slot = STAGE_HORIZONTAL_BASE_CONTINUOUS
       width = base * STAGE_HORIZONTAL_BASE_CONTINUOUS + horizontalGap
-      height = base * STAGE_VERTICAL_BASE_CONTINUOUS + verticalGap
+      height = heightFor(width)
     } else {
       slot = 1
       width = base
-      height = base
+      height = heightFor(width)
     }
   }
   const fullWidth = width + SAFE_PADDING * 2

@@ -520,6 +520,10 @@ const Picture = React.memo(({
   }, [isExpanded, loaded, onExpand, onClose, index, slideshow])
 
   const dragTransform = `translate3d(${baseLeft}px, ${baseTop}px, 0) translate(${flip.dx}px, ${flip.dy}px) scale(${flip.sx}, ${flip.sy})`
+  // True when the layout gave this photo a box that does not match its own aspect
+  // ratio (the mosaic clamps very tall/wide photos), so the image is letterboxed.
+  const boxMismatch = !!width && !!height && !!pic.aspectRatio
+    && Math.abs((width / height) - pic.aspectRatio) / pic.aspectRatio > 0.03
   // Slideshow entrance/exit (scatter in, fade out) — driven by the batch Gallery
   // hands down, so a card animates every time it appears.
   const slideClass = slideshow && slidePhase === 'in'
@@ -601,7 +605,9 @@ const Picture = React.memo(({
                   loading="lazy"
                   decoding="async"
                   draggable={false}
-                  style={{ width, height }}
+                  // The mosaic clamps box heights, so a box occasionally differs from
+                  // the photo's own ratio; letterbox those instead of cropping them.
+                  style={boxMismatch ? { width, height, objectFit: 'contain' } : { width, height }}
                   onLoad={updateLoaded}
                 />
                 <span className={styles.specular}/>
