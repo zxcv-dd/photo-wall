@@ -56,12 +56,16 @@ export const isFeaturePic = (pic: { date?: string }): boolean =>
 // team-building (团建 always ends up last), each in the order the day happened.
 const FEATURE_GROUP_ORDER = ['分享', '现场', '草坪', '晚会']
 
-// "26年庆典·分享-3" -> { prefix: '26年庆典', group: '分享', index: 3 }
+// "26年庆典-分享-3" -> { prefix: '26年庆典', group: '分享', index: 3 }
+// scripts/prep-photos.js sanitises the filename and turns the middle dot into a dash,
+// so accept both "·" and "-" here (the local dev build keeps the dot).
 const parseFeatureCaption = (caption: string) => {
-  const [head, rest = ''] = caption.split('\u00b7')
+  const normalised = caption.replace(/\u00b7/g, '-')
+  const prefix = FEATURE_LABEL_PREFIXES.find((p) => normalised.startsWith(p)) || normalised
+  const rest = normalised.slice(prefix.length).replace(/^-/, '')
   const dash = rest.lastIndexOf('-')
   return {
-    prefix: head || caption,
+    prefix,
     group: dash >= 0 ? rest.slice(0, dash) : rest,
     index: dash >= 0 ? Number(rest.slice(dash + 1)) || 0 : 0,
   }
